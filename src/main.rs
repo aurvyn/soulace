@@ -15,9 +15,13 @@ enum Heading {
 enum Element {
 	Label(String, Heading),
 	Button(String),
+	Code(String),
 	TextEdit(String),
 	CodeEdit(String),
 	CheckBox(bool, String),
+	Link(String, String),
+	Toggle(bool, String),
+	Details(String, Vec<Element>),
 	Unknown,
 }
 
@@ -34,9 +38,29 @@ impl Element {
 				"h5" => Element::Label(value, Heading::H5),
 				"h6" => Element::Label(value, Heading::H6),
 				"button" => Element::Button(value),
+				"code" => Element::Code(value),
 				"textedit" => Element::TextEdit(value),
 				"codeedit" => Element::CodeEdit(value),
 				"checkbox" => Element::CheckBox(false, value),
+				"link" => Element::Link(value, String::new()),
+				"toggle" => Element::Toggle(false, value),
+				"details" => {
+					let header = mapping
+						.get("header")
+						.and_then(|text| text.as_str())
+						.unwrap_or_default()
+						.to_string();
+					let empty_vec = vec![];
+					let summary = mapping
+						.get("summary")
+						.and_then(|val| val.as_sequence())
+						.unwrap_or(&empty_vec)
+						.iter()
+						.filter_map(|item| item.as_mapping())
+						.map(Element::new)
+						.collect();
+					Element::Details(header, summary)
+				}
 				_ => Element::Unknown,
 			}
 		} else {
@@ -74,33 +98,61 @@ fn parse_yaml() -> (String, Vec<Element>) {
 	(title, body)
 }
 
+fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>) {
+	for element in body {
+		match element {
+			Element::Label(text, heading) => {
+				let text = RichText::new(&*text);
+				ui.label(match heading {
+					Heading::Plain => text.size(16.0),
+					Heading::H1 => text.size(32.0).strong(),
+					Heading::H2 => text.size(26.0).strong(),
+					Heading::H3 => text.size(18.72).strong(),
+					Heading::H4 => text.size(16.0).strong(),
+					Heading::H5 => text.size(13.28).strong(),
+					Heading::H6 => text.size(10.72).strong(),
+				});
+			}
+			Element::Button(text) => {
+				ui.button(&*text).clicked();
+			}
+			Element::Code(text) => {
+				ui.code(text);
+			}
+			Element::TextEdit(text) => {
+				ui.text_edit_singleline(text);
+			}
+			Element::CodeEdit(text) => {
+				ui.code_editor(text);
+			}
+			Element::CheckBox(checked, text) => {
+				ui.checkbox(checked, &*text);
+			}
+			Element::Link(text, _url) => {
+				ui.link(&*text).clicked();
+			}
+			Element::Toggle(selected, text) => {
+				ui.toggle_value(selected, &*text);
+			}
+			Element::Details(header, summary) => {
+				ui.collapsing(&*header, |ui| {
+					draw_elements(ui, summary);
+				});
+			}
+			_ => {
+				ui.label("Unknown element");
+			}
+		}
+	}
+}
+
 fn main() -> eframe::Result {
 	let (title, mut body) = parse_yaml();
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {
 		egui::CentralPanel::default().show(ctx, |ui| {
-			for element in &mut body {
-				match element {
-					Element::Label(text, heading) => {
-						let text = RichText::new(&*text);
-						ui.label(match heading {
-							Heading::Plain => text.size(16.0),
-							Heading::H1 => text.size(32.0).strong(),
-							Heading::H2 => text.size(26.0).strong(),
-							Heading::H3 => text.size(18.72).strong(),
-							Heading::H4 => text.size(16.0).strong(),
-							Heading::H5 => text.size(13.28).strong(),
-							Heading::H6 => text.size(10.72).strong(),
-						})
-					}
-					Element::Button(text) => ui.button(&*text),
-					Element::TextEdit(text) => ui.text_edit_singleline(text),
-					Element::CodeEdit(text) => ui.code_editor(text),
-					Element::CheckBox(checked, text) => ui.checkbox(checked, &*text),
-					_ => ui.label("Unknown element"),
-				};
-			}
+			draw_elements(ui, &mut body);
 		});
 	})
 }

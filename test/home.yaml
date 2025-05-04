@@ -11,6 +11,14 @@ body:
   - h5: test
   - h6: "123"
   - button: Click me!
-  - textedit: "this is a text edit"
-  - codeedit: "this is a code edit"
-  - checkbox: "this is a checkbox"
+  - code: fn main();
+  - textedit: this is a text edit
+  - codeedit: this is a code edit
+  - checkbox: this is a checkbox
+  - link: this is a link
+  - details:
+    header: Details
+    summary: 
+      - p: This is a summary
+      - button: Hmmm...
+  - toggle: this is a toggle
