@@ -11,3 +11,6 @@ body:
   - h5: test
   - h6: "123"
   - button: Click me!
+  - textedit: "this is a text edit"
+  - codeedit: "this is a code edit"
+  - checkbox: "this is a checkbox"

@@ -1,9 +1,53 @@
 use std::fs;
 use eframe::egui::{self, RichText};
+use serde_yaml::Mapping;
+
+enum Heading {
+	Plain,
+	H1,
+	H2,
+	H3,
+	H4,
+	H5,
+	H6,
+}
+
+enum Element {
+	Label(String, Heading),
+	Button(String),
+	TextEdit(String),
+	CodeEdit(String),
+	CheckBox(bool, String),
+	Unknown,
+}
+
+impl Element {
+	fn new(mapping: &Mapping) -> Self {
+		if let Some((tag, value)) = mapping.iter().next() {
+			let value = value.as_str().unwrap_or_default().to_string();
+			match tag.as_str().unwrap_or_default() {
+				"p" => Element::Label(value, Heading::Plain),
+				"h1" => Element::Label(value, Heading::H1),
+				"h2" => Element::Label(value, Heading::H2),
+				"h3" => Element::Label(value, Heading::H3),
+				"h4" => Element::Label(value, Heading::H4),
+				"h5" => Element::Label(value, Heading::H5),
+				"h6" => Element::Label(value, Heading::H6),
+				"button" => Element::Button(value),
+				"textedit" => Element::TextEdit(value),
+				"codeedit" => Element::CodeEdit(value),
+				"checkbox" => Element::CheckBox(false, value),
+				_ => Element::Unknown,
+			}
+		} else {
+			Element::Unknown
+		}
+	}
+}
 
 const FILE_PATH: &str = "test/home.yaml";
 
-fn main() -> eframe::Result {
+fn parse_yaml() -> (String, Vec<Element>) {
 	let yaml_code = fs::read_to_string(FILE_PATH).expect("Something went wrong reading the file");
 	let yaml = serde_yaml::from_str::<serde_yaml::Value>(&yaml_code).expect("Failed to parse YAML");
 	let doc = yaml
@@ -20,42 +64,42 @@ fn main() -> eframe::Result {
 		.as_str()
 		.expect("Failed to parse 'title' as text")
 		.to_string();
-	let body = doc
-		.get("body")
+	let body = doc.get("body")
 		.expect("Failed to get 'body' from YAML")
 		.as_sequence()
 		.expect("Failed to parse 'body' as sequence")
-		.clone();
+		.iter()
+		.map(|item| item.as_mapping().map_or(Element::Unknown, Element::new))
+		.collect();
+	(title, body)
+}
 
-	let mut souls = 0;
+fn main() -> eframe::Result {
+	let (title, mut body) = parse_yaml();
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {
 		egui::CentralPanel::default().show(ctx, |ui| {
-			for item in &body {
-				item.as_mapping().map(|mapping| {
-					let (tag, value) = mapping.iter().next().unwrap();
-					let tag = tag.as_str().expect("Failed to parse tag as valid syntax");
-					let value = value.as_str().expect("Failed to parse value as text");
-					let text = RichText::new(value);
-					match tag {
-						"p" => ui.label(text),
-						"h1" => ui.label(text.size(32.0).strong()),
-						"h2" => ui.label(text.size(24.0).strong()),
-						"h3" => ui.label(text.size(18.72).strong()),
-						"h4" => ui.label(text.size(16.0).strong()),
-						"h5" => ui.label(text.size(13.28).strong()),
-						"h6" => ui.label(text.size(10.72).strong()),
-						"button" => ui.button(text),
-						_ => panic!("Unknown tag: {}", tag),
+			for element in &mut body {
+				match element {
+					Element::Label(text, heading) => {
+						let text = RichText::new(&*text);
+						ui.label(match heading {
+							Heading::Plain => text.size(16.0),
+							Heading::H1 => text.size(32.0).strong(),
+							Heading::H2 => text.size(26.0).strong(),
+							Heading::H3 => text.size(18.72).strong(),
+							Heading::H4 => text.size(16.0).strong(),
+							Heading::H5 => text.size(13.28).strong(),
+							Heading::H6 => text.size(10.72).strong(),
+						})
 					}
-				}).unwrap_or_else(|| {
-					ui.label("Invalid item in YAML")
-				});
-			}
-			ui.label(format!("You have collected {} souls!", souls));
-			if ui.button("collect soul").clicked() {
-				souls += 1;
+					Element::Button(text) => ui.button(&*text),
+					Element::TextEdit(text) => ui.text_edit_singleline(text),
+					Element::CodeEdit(text) => ui.code_editor(text),
+					Element::CheckBox(checked, text) => ui.checkbox(checked, &*text),
+					_ => ui.label("Unknown element"),
+				};
 			}
 		});
 	})
