@@ -38,16 +38,17 @@ fn main() -> eframe::Result {
 					let tag = tag.as_str().expect("Failed to parse tag as valid syntax");
 					let value = value.as_str().expect("Failed to parse value as text");
 					let text = RichText::new(value);
-					ui.label(match tag {
-						"p" => text,
-						"h1" => text.size(30.0).strong(),
-						"h2" => text.size(28.0).strong(),
-						"h3" => text.size(26.0).strong(),
-						"h4" => text.size(24.0).strong(),
-						"h5" => text.size(22.0).strong(),
-						"h6" => text.size(20.0).strong(),
+					match tag {
+						"p" => ui.label(text),
+						"h1" => ui.label(text.size(32.0).strong()),
+						"h2" => ui.label(text.size(24.0).strong()),
+						"h3" => ui.label(text.size(18.72).strong()),
+						"h4" => ui.label(text.size(16.0).strong()),
+						"h5" => ui.label(text.size(13.28).strong()),
+						"h6" => ui.label(text.size(10.72).strong()),
+						"button" => ui.button(text),
 						_ => panic!("Unknown tag: {}", tag),
-					})
+					}
 				}).unwrap_or_else(|| {
 					ui.label("Invalid item in YAML")
 				});

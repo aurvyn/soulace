@@ -1,12 +1,13 @@
 head:
-  title: "Home"
+  title: Home
 
 body:
-  - h1: "Welcome to the Soulace browser!"
-  - p: "Soulace is a browser that uses Pug/Sass/Nim instead of HTML/CSS/JS."
-  - p: "It is a work in progress, and not all features are implemented yet. This is just a test page."
-  - h2: "test"
-  - h3: "test"
-  - h4: "test"
-  - h5: "test"
-  - h6: "test"
+  - h1: Welcome to the Soulace browser!
+  - p: Soulace is a browser that uses YAML/Sass/Gluon instead of HTML/CSS/JS.
+  - p: It is a work in progress, and not all features are implemented yet. This is just a test page.
+  - h2: test
+  - h3: test
+  - h4: test
+  - h5: test
+  - h6: "123"
+  - button: Click me!
