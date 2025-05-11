@@ -1,0 +1,9 @@
+[package]
+name = "soulace"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { version = "0.31", features = ["wgpu"] }
+raffia = "0.9.1"
+serde_yaml = "0.9.34"

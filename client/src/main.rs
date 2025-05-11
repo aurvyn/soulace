@@ -2,6 +2,8 @@ use std::fs;
 use eframe::egui::{self, RichText};
 use serde_yaml::Mapping;
 
+const FILE_PATH: &str = "../server/test/home.yaml";
+
 enum Heading {
 	Plain,
 	H1,
@@ -68,8 +70,6 @@ impl Element {
 		}
 	}
 }
-
-const FILE_PATH: &str = "test/home.yaml";
 
 fn parse_yaml() -> (String, Vec<Element>) {
 	let yaml_code = fs::read_to_string(FILE_PATH).expect("Something went wrong reading the file");
