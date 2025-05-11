@@ -1,8 +1,6 @@
-use std::fs;
 use eframe::egui::{self, RichText};
 use serde_yaml::Mapping;
-
-const FILE_PATH: &str = "../server/test/home.yaml";
+use reqwest::Client;
 
 enum Heading {
 	Plain,
@@ -71,8 +69,7 @@ impl Element {
 	}
 }
 
-fn parse_yaml() -> (String, Vec<Element>) {
-	let yaml_code = fs::read_to_string(FILE_PATH).expect("Something went wrong reading the file");
+fn parse_yaml(yaml_code: String) -> (String, Vec<Element>) {
 	let yaml = serde_yaml::from_str::<serde_yaml::Value>(&yaml_code).expect("Failed to parse YAML");
 	let doc = yaml
 		.as_mapping()
@@ -146,8 +143,15 @@ fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>) {
 	}
 }
 
-fn main() -> eframe::Result {
-	let (title, mut body) = parse_yaml();
+#[tokio::main]
+async fn main() -> eframe::Result {
+	let client = Client::new();
+	let response = client.get("http://localhost:3030")
+		.send().await
+		.expect("Failed to send request")
+		.text().await
+		.expect("Failed to read response");
+	let (title, mut body) = parse_yaml(response);
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {
