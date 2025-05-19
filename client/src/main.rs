@@ -1,6 +1,11 @@
 use eframe::egui::{self, RichText};
 use serde_yaml::Mapping;
+use raffia::{ast::{Statement, Stylesheet}, Parser, Syntax};
 use reqwest::Client;
+
+const SERVER_URL: &str = "http://localhost:3030";
+const WEBSITE: &str = "test";
+const DEFAULT_STYLE: &str = "default.sass";
 
 enum Heading {
 	Plain,
@@ -69,7 +74,7 @@ impl Element {
 	}
 }
 
-fn parse_yaml(yaml_code: String) -> (String, Vec<Element>) {
+async fn parse_yaml(yaml_code: String, client: Client) -> (String, Vec<Element>) {
 	let yaml = serde_yaml::from_str::<serde_yaml::Value>(&yaml_code).expect("Failed to parse YAML");
 	let doc = yaml
 		.as_mapping()
@@ -85,6 +90,15 @@ fn parse_yaml(yaml_code: String) -> (String, Vec<Element>) {
 		.as_str()
 		.expect("Failed to parse 'title' as text")
 		.to_string();
+	let style_file_name = head
+		.get("style")
+		.map_or(DEFAULT_STYLE, |s| s.as_str().expect("Failed to parse 'style' as text"));
+	let ref style_code = client.get(format!("{SERVER_URL}/{WEBSITE}/{style_file_name}"))
+		.send().await
+		.expect("Failed to send request")
+		.text().await
+		.expect("Failed to read response");
+	let _sass_ast = parse_sass(style_code);
 	let body = doc.get("body")
 		.expect("Failed to get 'body' from YAML")
 		.as_sequence()
@@ -93,6 +107,14 @@ fn parse_yaml(yaml_code: String) -> (String, Vec<Element>) {
 		.map(|item| item.as_mapping().map_or(Element::Unknown, Element::new))
 		.collect();
 	(title, body)
+}
+
+fn parse_sass(sass_code: &String) -> Vec<Statement> {
+	let mut parser = Parser::new(sass_code, Syntax::Sass);
+	match parser.parse::<Stylesheet>() {
+		Ok(ast) => ast.statements,
+		Err(_) => vec![],
+	}
 }
 
 fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>) {
@@ -146,12 +168,12 @@ fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>) {
 #[tokio::main]
 async fn main() -> eframe::Result {
 	let client = Client::new();
-	let response = client.get("http://localhost:3030")
+	let response = client.get(format!("{SERVER_URL}/{WEBSITE}/home.yaml"))
 		.send().await
 		.expect("Failed to send request")
 		.text().await
 		.expect("Failed to read response");
-	let (title, mut body) = parse_yaml(response);
+	let (title, mut body) = parse_yaml(response, client).await;
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {

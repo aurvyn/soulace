@@ -1,5 +1,6 @@
 head:
   title: Home
+  style: home.sass
 
 body:
   - h1: Welcome to the Soulace browser!
