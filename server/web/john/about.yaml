@@ -1,0 +1,10 @@
+head:
+  title: My Homepage
+
+body:
+  - h1: Hello! I'm John.
+  - p: This is my personal homepage.
+  - p: I am a software developer with a passion for open-source projects.
+  - p: I enjoy working with various programming languages and frameworks.
+  - p: In my free time, I like to contribute to the community and work on personal projects.
+  - p: Feel free to explore my projects and get in touch with me!
