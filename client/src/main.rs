@@ -113,7 +113,8 @@ fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>, styles: &Styles, lu
 			Element::TextEdit(text, onsubmit) => {
 				let response = ui.add(egui::TextEdit::singleline(text));
 				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-					lua.load(&*onsubmit).exec().expect("Failed to execute Lua script");
+					let script = format!("{onsubmit}(\"{text}\")");
+					lua.load(script).exec().expect("Failed to execute Lua script");
 				}
 			}
 			Element::CodeEdit(text) => {
