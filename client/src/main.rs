@@ -1,4 +1,5 @@
 use eframe::egui::{self, Color32, Context, RichText, TextStyle, ViewportCommand};
+use mlua::Lua;
 use reqwest::Client;
 use simplecss::StyleSheet;
 use pollster::FutureExt;
@@ -13,13 +14,14 @@ const SERVER_URL: &str = "http://localhost:3030";
 const WEBSITE: &str = "test/home.yaml";
 const DEFAULT_STYLE: &str = "template/default.sass";
 
-async fn parse_yaml(url: &str, yaml_code: String, client: &Client) -> (String, Vec<Element>, Styles) {
+async fn parse_yaml(url: &str, yaml_code: String, client: &Client, lua: &Lua) -> (String, Vec<Element>, Styles) {
 	if yaml_code.is_empty() || !url.ends_with(".yaml") {
 		return ("Erm what?".to_string(), vec![
 			Element::Label("Hmm. We're having trouble finding that site.".to_string(), Heading::H1),
 			Element::Label("We can't connect to that server bruh".to_string(), Heading::H3),
 		], Styles::default());
 	}
+	let website = url.split('/').next().unwrap();
 	let yaml = serde_yaml::from_str::<serde_yaml::Value>(&yaml_code).expect("Failed to parse YAML");
 	let doc = yaml
 		.as_mapping()
@@ -36,12 +38,18 @@ async fn parse_yaml(url: &str, yaml_code: String, client: &Client) -> (String, V
 		.expect("Failed to parse 'title' as text")
 		.to_string();
 	let css = if let Some(path) = head.get("style").and_then(|style| style.as_str()) {
-		let sass = fetch_file(client, &format!("{url}/{path}")).await;
+		let sass = fetch_file(client, &format!("{website}/{path}")).await;
 		grass::from_string(sass, &grass::Options::default().input_syntax(grass::InputSyntax::Sass)).unwrap()
 	} else {
 		grass::from_path(DEFAULT_STYLE, &grass::Options::default()).unwrap()
 	};
 	let styles = parse_css(css);
+	let script = if let Some(path) = head.get("script").and_then(|script| script.as_str()) {
+		fetch_file(client, &format!("{website}/{path}")).await
+	} else {
+		String::new()
+	};
+	lua.load(&script).exec().expect("Failed to execute Lua script");
 	let body = doc.get("body")
 		.expect("Failed to get 'body' from YAML")
 		.as_sequence()
@@ -82,7 +90,7 @@ fn parse_css(css_code: String) -> Styles {
 	styles
 }
 
-fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>, styles: &Styles) {
+fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>, styles: &Styles, lua: &Lua) {
 	for element in body {
 		match element {
 			Element::Label(text, heading) => {
@@ -103,8 +111,11 @@ fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>, styles: &Styles) {
 			Element::Code(text) => {
 				ui.code(text);
 			}
-			Element::TextEdit(text) => {
-				ui.text_edit_singleline(text);
+			Element::TextEdit(text, onsubmit) => {
+				let response = ui.add(egui::TextEdit::singleline(text));
+				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+					lua.load(&*onsubmit).exec().expect("Failed to execute Lua script");
+				}
 			}
 			Element::CodeEdit(text) => {
 				ui.code_editor(text);
@@ -120,7 +131,7 @@ fn draw_elements(ui: &mut egui::Ui, body: &mut Vec<Element>, styles: &Styles) {
 			}
 			Element::Details(header, summary) => {
 				ui.collapsing(&*header, |ui| {
-					draw_elements(ui, summary, styles);
+					draw_elements(ui, summary, styles, lua);
 				});
 			}
 			_ => {
@@ -138,18 +149,19 @@ async fn fetch_file(client: &Client, url: &str) -> String {
 		.expect("Failed to read response")
 }
 
-fn fetch_site(ctx: &Context, client: &Client, url: &str) -> (Vec<Element>, Styles) {
+fn fetch_site(ctx: &Context, client: &Client, url: &str, lua: &Lua) -> (Vec<Element>, Styles) {
 	let response = fetch_file(client, url).block_on();
-	let (title, body, styles) = parse_yaml(url, response, &client).block_on();
+	let (title, body, styles) = parse_yaml(url, response, &client, lua).block_on();
 	ctx.send_viewport_cmd(ViewportCommand::Title(title));
 	(body, styles)
 }
 
 #[tokio::main]
 async fn main() -> eframe::Result {
+	let lua = Lua::new();
 	let client = Client::new();
 	let response = fetch_file(&client, WEBSITE).await;
-	let (title, mut body, mut styles) = parse_yaml(WEBSITE, response, &client).await;
+	let (title, mut body, mut styles) = parse_yaml(WEBSITE, response, &client, &lua).await;
 	let mut url = WEBSITE.to_string();
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
@@ -157,16 +169,16 @@ async fn main() -> eframe::Result {
 		egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
 			ui.horizontal_centered(|ui| {
 				if ui.button("⟳").clicked() {
-					(body, styles) = fetch_site(ctx, &client, &url);
+					(body, styles) = fetch_site(ctx, &client, &url, &lua);
 				}
 				let response = ui.add(egui::TextEdit::singleline(&mut url).hint_text("Enter URL").font(TextStyle::Heading));
 				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-					(body, styles) = fetch_site(ctx, &client, &url);
+					(body, styles) = fetch_site(ctx, &client, &url, &lua);
 				}
 			});
 		});
 		egui::CentralPanel::default().show(ctx, |ui| {
-			draw_elements(ui, &mut body, &styles);
+			draw_elements(ui, &mut body, &styles, &lua);
 		});
 	})
 }

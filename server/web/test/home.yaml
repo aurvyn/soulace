@@ -1,6 +1,7 @@
 head:
   title: Home
   style: home.sass
+  script: home.luau
 
 body:
   - h1: Welcome to the Soulace browser!
@@ -13,7 +14,9 @@ body:
   - h6: "123"
   - button: Click me!
   - code: fn main();
-  - textedit: this is a text edit
+  - textedit:
+    default: this is a text edit
+    onsubmit: hello_world()
   - codeedit: this is a code edit
   - checkbox: this is a checkbox
   - link: this is a link

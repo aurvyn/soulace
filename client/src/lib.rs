@@ -15,7 +15,7 @@ pub enum Element {
 	Label(String, Heading),
 	Button(String),
 	Code(String),
-	TextEdit(String),
+	TextEdit(String, String),
 	CodeEdit(String),
 	CheckBox(bool, String),
 	Link(String, String),
@@ -38,7 +38,19 @@ impl Element {
 				"h6" => Element::Label(value, Heading::H6),
 				"button" => Element::Button(value),
 				"code" => Element::Code(value),
-				"textedit" => Element::TextEdit(value),
+				"textedit" => {
+                    let default = mapping
+						.get("default")
+						.and_then(|text| text.as_str())
+						.unwrap_or_default()
+						.to_string();
+                    let onsubmit = mapping
+                        .get("onsubmit")
+                        .and_then(|text| text.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    Element::TextEdit(default, onsubmit)
+                },
 				"codeedit" => Element::CodeEdit(value),
 				"checkbox" => Element::CheckBox(false, value),
 				"link" => Element::Link(value, String::new()),
