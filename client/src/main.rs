@@ -164,6 +164,9 @@ async fn main() -> eframe::Result {
 	let (title, mut body, mut styles, script) = parse_yaml(WEBSITE, response, &client).block_on();
 	lua.load(script).exec().expect("Failed to execute Lua script");
 	let mut url = WEBSITE.to_string();
+	let mut current_url = url.clone();
+	let mut url_history = vec![];
+	let mut url_future = vec![];
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {
@@ -180,11 +183,27 @@ async fn main() -> eframe::Result {
 				if ui.button("⚙").clicked() {
 					println!("Settings clicked");
 				}
-				if ui.button("⬅").clicked() {
-					println!("Back clicked");
+				if ui.add_enabled(!url_history.is_empty(), egui::Button::new("⬅")).clicked() {
+					url = url_history.pop().unwrap();
+					url_future.push(current_url.clone());
+					current_url = url.clone();
+					let ctx = ctx.clone();
+					let client = client.clone();
+					let url = url.clone();
+					page_promise = Some(poll_promise::Promise::spawn_async(async move {
+						fetch_site(&ctx, &client, &url).await
+					}));
 				}
-				if ui.button("➡").clicked() {
-					println!("Forward clicked");
+				if ui.add_enabled(!url_future.is_empty(), egui::Button::new("➡")).clicked() {
+					url = url_future.pop().unwrap();
+					url_history.push(current_url.clone());
+					current_url = url.clone();
+					let ctx = ctx.clone();
+					let client = client.clone();
+					let url = url.clone();
+					page_promise = Some(poll_promise::Promise::spawn_async(async move {
+						fetch_site(&ctx, &client, &url).await
+					}));
 				}
 				if ui.button("⟳").clicked() {
 					let ctx = ctx.clone();
@@ -195,7 +214,10 @@ async fn main() -> eframe::Result {
 					}));
 				}
 				let response = ui.add(egui::TextEdit::singleline(&mut url).hint_text("Enter URL").font(TextStyle::Heading));
-				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && url != current_url {
+					url_history.push(current_url.clone());
+					url_future.clear();
+					current_url = url.clone();
 					let ctx = ctx.clone();
 					let client = client.clone();
 					let url = url.clone();
