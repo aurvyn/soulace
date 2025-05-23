@@ -1,7 +1,5 @@
 --!strict
 
-function hello_world(): ()
-    print("Hello, world!")
+function echo(text: string): ()
+    print("From text input:", text)
 end
-
-hello_world()

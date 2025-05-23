@@ -12,3 +12,4 @@ serde_yaml = "0.9.34"
 reqwest = "0.12.15"
 pollster = "0.4.0"
 mlua = { version = "0.10.3", features = ["luau"] }
+poll-promise = { version = "0.3.0", features = ["tokio"] }

@@ -16,7 +16,7 @@ body:
   - code: fn main();
   - textedit:
     default: this is a text edit
-    onsubmit: hello_world()
+    onsubmit: echo
   - codeedit: this is a code edit
   - checkbox: this is a checkbox
   - link: this is a link

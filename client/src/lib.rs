@@ -1,6 +1,7 @@
 use eframe::egui::Color32;
 use serde_yaml::Mapping;
 
+#[derive(Clone, Copy)]
 pub enum Heading {
 	Plain,
 	H1,
@@ -11,6 +12,7 @@ pub enum Heading {
 	H6,
 }
 
+#[derive(Clone)]
 pub enum Element {
 	Label(String, Heading),
 	Button(String),
@@ -80,6 +82,7 @@ impl Element {
 	}
 }
 
+#[derive(Clone)]
 pub struct Styles {
 	pub body: ContainerStyle,
 	pub p: TextStyle,
@@ -163,6 +166,7 @@ pub trait Style {
 	fn set_font_size(&mut self, size: f32);
 }
 
+#[derive(Clone)]
 pub struct ContainerStyle {
 	pub background_color: Color32,
 }
@@ -185,6 +189,7 @@ impl Style for ContainerStyle {
 	fn set_font_size(&mut self, _size: f32) {}
 }
 
+#[derive(Clone)]
 pub struct TextStyle {
 	pub color: Color32,
 	pub font_size: f32,

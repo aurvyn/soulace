@@ -14,12 +14,12 @@ const SERVER_URL: &str = "http://localhost:3030";
 const WEBSITE: &str = "test/home.yaml";
 const DEFAULT_STYLE: &str = "template/default.sass";
 
-async fn parse_yaml(url: &str, yaml_code: String, client: &Client, lua: &Lua) -> (String, Vec<Element>, Styles) {
+async fn parse_yaml(url: &str, yaml_code: String, client: &Client) -> (String, Vec<Element>, Styles, String) {
 	if yaml_code.is_empty() || !url.ends_with(".yaml") {
 		return ("Erm what?".to_string(), vec![
 			Element::Label("Hmm. We're having trouble finding that site.".to_string(), Heading::H1),
 			Element::Label("We can't connect to that server bruh".to_string(), Heading::H3),
-		], Styles::default());
+		], Styles::default(), String::new());
 	}
 	let website = url.split('/').next().unwrap();
 	let yaml = serde_yaml::from_str::<serde_yaml::Value>(&yaml_code).expect("Failed to parse YAML");
@@ -49,7 +49,6 @@ async fn parse_yaml(url: &str, yaml_code: String, client: &Client, lua: &Lua) ->
 	} else {
 		String::new()
 	};
-	lua.load(&script).exec().expect("Failed to execute Lua script");
 	let body = doc.get("body")
 		.expect("Failed to get 'body' from YAML")
 		.as_sequence()
@@ -57,7 +56,7 @@ async fn parse_yaml(url: &str, yaml_code: String, client: &Client, lua: &Lua) ->
 		.iter()
 		.map(|item| item.as_mapping().map_or(Element::Unknown, Element::new))
 		.collect();
-	(title, body, styles)
+	(title, body, styles, script)
 }
 
 fn parse_css(css_code: String) -> Styles {
@@ -149,31 +148,60 @@ async fn fetch_file(client: &Client, url: &str) -> String {
 		.expect("Failed to read response")
 }
 
-fn fetch_site(ctx: &Context, client: &Client, url: &str, lua: &Lua) -> (Vec<Element>, Styles) {
-	let response = fetch_file(client, url).block_on();
-	let (title, body, styles) = parse_yaml(url, response, &client, lua).block_on();
+async fn fetch_site(ctx: &Context, client: &Client, url: &str) -> (Vec<Element>, Styles, String) {
+	let response = fetch_file(client, url).await;
+	let (title, body, styles, script) = parse_yaml(url, response, &client).await;
 	ctx.send_viewport_cmd(ViewportCommand::Title(title));
-	(body, styles)
+	(body, styles, script)
 }
 
 #[tokio::main]
 async fn main() -> eframe::Result {
+	let mut page_promise: Option<poll_promise::Promise<(Vec<Element>, Styles, String)>> = None;
 	let lua = Lua::new();
 	let client = Client::new();
-	let response = fetch_file(&client, WEBSITE).await;
-	let (title, mut body, mut styles) = parse_yaml(WEBSITE, response, &client, &lua).await;
+	let response = fetch_file(&client, WEBSITE).block_on();
+	let (title, mut body, mut styles, script) = parse_yaml(WEBSITE, response, &client).block_on();
+	lua.load(script).exec().expect("Failed to execute Lua script");
 	let mut url = WEBSITE.to_string();
 	let mut options = eframe::NativeOptions::default();
 	options.renderer = eframe::Renderer::Wgpu;
 	eframe::run_simple_native(&title, options, move |ctx, _frame| {
+		if let Some(p) = &page_promise {
+			if let Some((elements, style, script)) = p.ready() {
+				body = elements.clone();
+				styles = style.clone();
+				lua.load(script).exec().expect("Failed to execute Lua script");
+				page_promise = None;
+			}
+		}
 		egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
 			ui.horizontal_centered(|ui| {
+				if ui.button("⚙").clicked() {
+					println!("Settings clicked");
+				}
+				if ui.button("⬅").clicked() {
+					println!("Back clicked");
+				}
+				if ui.button("➡").clicked() {
+					println!("Forward clicked");
+				}
 				if ui.button("⟳").clicked() {
-					(body, styles) = fetch_site(ctx, &client, &url, &lua);
+					let ctx = ctx.clone();
+					let client = client.clone();
+					let url = url.clone();
+					page_promise = Some(poll_promise::Promise::spawn_async(async move {
+						fetch_site(&ctx, &client, &url).await
+					}));
 				}
 				let response = ui.add(egui::TextEdit::singleline(&mut url).hint_text("Enter URL").font(TextStyle::Heading));
 				if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-					(body, styles) = fetch_site(ctx, &client, &url, &lua);
+					let ctx = ctx.clone();
+					let client = client.clone();
+					let url = url.clone();
+					page_promise = Some(poll_promise::Promise::spawn_async(async move {
+						fetch_site(&ctx, &client, &url).await
+					}));
 				}
 			});
 		});
